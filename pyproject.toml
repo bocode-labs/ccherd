@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ccherd"
+dynamic = ["version"]
+description = "Claude Code sessions and subagents across several Claude accounts"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "bocode labs" }]
+classifiers = [
+  "Environment :: Console",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+]
+
+[project.scripts]
+ccherd = "ccherd.cli:main"
+
+[tool.hatch.version]
+path = "src/ccherd/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ccherd"]
+
+[tool.ruff]
+line-length = 120

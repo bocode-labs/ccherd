@@ -1,0 +1,21 @@
+name: release
+
+# Publishes to PyPI when a version tag is pushed. Uses PyPI trusted publishing:
+# register this repo and workflow once under the project's "Publishing" settings
+# on pypi.org; no token is stored here.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv build
+      - run: uv publish
