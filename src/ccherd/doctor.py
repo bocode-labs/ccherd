@@ -105,6 +105,17 @@ def skill_locations(root: Path, accounts: list[Account]) -> list[Path]:
                    if (p / "skills" / "ccherd" / "SKILL.md").is_file()})
 
 
+def skill_check(root: Path, accounts: list[Account]) -> Check:
+    repo_skill = (root / ".claude" / "skills" / "ccherd" / "SKILL.md").resolve()
+    found = skill_locations(root, accounts)
+    if not found:
+        return Check(WARN, "skill", "not installed - `ccherd setup`")
+    where = [f"{tilde(p.parent)} ({'this repo' if p == repo_skill else 'all repos'})" for p in found]
+    if len(found) > 1:
+        return Check(WARN, "skill", "installed twice, one is enough: " + ", ".join(where))
+    return Check(OK, "skill", where[0])
+
+
 def claude_version() -> str | None:
     exe = shutil.which("claude")
     if not exe:
@@ -125,9 +136,7 @@ def report(root: Path) -> bool:
     org = settings.organization
     general.append(Check(OK if org else WARN, "organization",
                          org["name"] if org else "none chosen - every listed dir counts (`ccherd setup` asks)"))
-    skills = skill_locations(root, accounts)
-    general.append(Check(OK if skills else WARN, "skill",
-                         ", ".join(tilde(p.parent) for p in skills) or "not installed - `ccherd setup`"))
+    general.append(skill_check(root, accounts))
     if len(accounts) == 1:
         general.append(Check(WARN, "accounts", "only one - nothing to spread quota across"))
     if not accounts:

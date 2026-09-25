@@ -21,7 +21,15 @@ ccherd setup --list
 
 One line per Claude config dir (`~/.claude`, `~/.claude-*`): logged in or not,
 its organization, the numbered family it belongs to, and which one this session
-runs under (`<- current`). `--list --json` gives the same as JSON.
+runs under (`<- current`). `--list --json` gives the same as a list of:
+
+```json
+{"dir": "~/.claude-work2", "logged_in": true, "organization": "Acme",
+ "family": "~/.claude-work*", "current": false}
+```
+
+`organization` is `null` when it could not be checked, `family` is `null` for a
+dir without numbered siblings.
 
 ## 3. Ask the user
 
@@ -57,16 +65,19 @@ ccherd setup --organization "<name>" --schema ~/.claude-work --skill repo --clau
 | `--yes` | the default for everything not given |
 
 If a flag is missing, setup changes nothing and names every missing flag.
-It ends by running `ccherd doctor`.
+
+Check the line `saved ...: <accounts>` against what the user wanted. A family
+includes every numbered dir that exists, so it may be more than you expect.
 
 ## 5. Check and fix
 
-```sh
-ccherd doctor
-```
+Setup ends by running `ccherd doctor`, so its output is already above. Run
+`ccherd doctor` again only after changing something.
 
 Exit code 0: done. 1: some line says `FAIL`. 3: setup has not run.
 
+- `skill ... installed twice`: it is in this repo and in the accounts' config
+  dirs. Ask the user which one to keep and delete the other `skills/ccherd` dir.
 - `not logged in` / `login expired`: the user has to log in; see step 6.
 - `not linked` on `skills`, `projects`, `agents`, `plugins`, `settings.json` or
   `CLAUDE.md`: the accounts do not share them yet. Ask the user, then run
