@@ -35,9 +35,11 @@ dir without numbered siblings.
 
 Show them the list and ask:
 
-1. **Which organization?** Only if the list shows more than one. ccherd uses the
-   accounts of one organization; subagents then share the caller's skills and
-   memories. Default: the organization of the `current` dir.
+1. **Which organizations?** Only if the list shows more than one. Each private
+   plan is its own organization ("<name>'s Organization"), so a user with
+   several private plans picks all of them; a user with a company team next to
+   a private plan usually picks just the team, since subagents should share the
+   caller's skills and memories. Default: the organization of the `current` dir.
 2. **Which dirs?** A family (`~/.claude-work*`) means all its numbered dirs,
    including ones created later. Single dirs are fine too.
 3. **Where should the skill go?** `repo` (this repo's `.claude/skills`, shared via
@@ -57,7 +59,7 @@ ccherd setup --organization "<name>" --schema ~/.claude-work --skill repo --clau
 
 | Flag | Answers |
 | --- | --- |
-| `--organization NAME` | which organization (name as in `--list`) |
+| `--organization NAME` | an organization to use, name as in `--list` (repeatable) |
 | `--schema PATH` | a numbered family: `PATH`, `PATH2`, `PATH-3`, ... (repeatable) |
 | `--dir PATH` | a single config dir (repeatable) |
 | `--skill repo\|home\|none` | where the skill goes |
@@ -80,7 +82,8 @@ Exit code 0: done. 1: some line says `FAIL`. 3: setup has not run.
   dirs. Ask the user which one to keep and delete the other `skills/ccherd` dir.
 - `not logged in` / `login expired`: the user has to log in; see step 6.
 - `not linked` on `skills`, `projects`, `agents`, `plugins`, `settings.json` or
-  `CLAUDE.md`: the accounts do not share them yet. Ask the user, then run
+  `CLAUDE.md`: the accounts do not share them yet. That is optional. Ask the
+  user whether they want them shared; only then run
   `ccherd doctor --fix --yes`. It merges each account's own copy into one shared
   place and symlinks it; files that differ stay in a `*.ccherd-backup-*` dir,
   nothing is deleted. Accounts with a running Claude session are skipped - the

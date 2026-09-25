@@ -176,12 +176,13 @@ OTHER = "Other"
 
 def _choose_accounts(a: Namespace) -> Settings:
     found = config.discover_dirs()
-    org, orgs_by_dir = _choose_organization(a, found)
+    orgs, orgs_by_dir = _choose_organizations(a, found)
     if a.dir or a.schema:
         return Settings(dirs=[Path(d).expanduser() for d in a.dir or []],
-                        schemas=[Path(s).expanduser() for s in a.schema or []], organization=org)
-    if org:
-        other = [p for p in found if orgs_by_dir.get(p) and orgs_by_dir[p]["uuid"] != org["uuid"]]
+                        schemas=[Path(s).expanduser() for s in a.schema or []], organizations=orgs)
+    if orgs:
+        keep = {o["uuid"] for o in orgs}
+        other = [p for p in found if orgs_by_dir.get(p) and orgs_by_dir[p]["uuid"] not in keep]
         for p in other:
             print(f"not listed: {tilde(p)} ({orgs_by_dir[p]['name']})")
         found = [p for p in found if p not in other]
@@ -194,7 +195,7 @@ def _choose_accounts(a: Namespace) -> Settings:
         picked, typed = tui.checkbox("Your Claude accounts", [c.describe() for c in choices], checked,
                                      short=[c.short() for c in choices], other=OTHER, flag="--dir/--schema")
     settings = Settings(dirs=[choices[i].path for i in picked if not choices[i].is_schema],
-                        schemas=[choices[i].path for i in picked if choices[i].is_schema], organization=org)
+                        schemas=[choices[i].path for i in picked if choices[i].is_schema], organizations=orgs)
     for item in typed.split():
         path = Path(item.rstrip("*")).expanduser()
         if not path.is_dir():
@@ -204,32 +205,41 @@ def _choose_accounts(a: Namespace) -> Settings:
     return settings
 
 
-def _choose_organization(a: Namespace, found: list[Path]) -> tuple[dict | None, dict[Path, dict | None]]:
-    """The organization whose seats ccherd uses, and the organization of every found dir.
+def _choose_organizations(a: Namespace, found: list[Path]) -> tuple[list[dict] | None, dict[Path, dict | None]]:
+    """The organizations whose seats ccherd uses (None: any), and the organization of every found dir.
 
-    Subagents should run with the caller's skills, memories and settings, which a
-    private plan next to a company team usually does not share - so one
-    organization, not every login on the machine.
+    A private plan next to a company team usually has other skills and memories,
+    so ccherd should not mix them. But several private plans are several
+    organizations too (each "<name>'s Organization"), so the choice is a set.
     """
     orgs_by_dir = {p: organization(fetch_profile(p)) for p in found if is_logged_in(p)}
     orgs = {o["uuid"]: o for o in orgs_by_dir.values() if o}
     if a.organization:
-        match = [o for o in orgs.values() if o["name"] == a.organization]
-        if not match:
-            names = ", ".join(sorted(o["name"] for o in orgs.values())) or "none"
-            raise SystemExit(f"ccherd: no logged-in dir belongs to organization {a.organization!r} (found: {names})")
-        return match[0], orgs_by_dir
+        names = set(a.organization)
+        match = [o for o in orgs.values() if o["name"] in names]
+        unknown = names - {o["name"] for o in match}
+        if unknown:
+            have = ", ".join(sorted(o["name"] for o in orgs.values())) or "none"
+            raise SystemExit(f"ccherd: no logged-in dir belongs to {', '.join(sorted(unknown))} (found: {have})")
+        return match, orgs_by_dir
+    if a.dir or a.schema:
+        return None, orgs_by_dir  # dirs chosen by hand: no filter on top
     if len(orgs) <= 1:
-        return next(iter(orgs.values()), None), orgs_by_dir
+        return (list(orgs.values()) or None), orgs_by_dir
     ordered = list(orgs.values())
     current = orgs_by_dir.get(config.current_dir())
-    default = next((i for i, o in enumerate(ordered) if current and o["uuid"] == current["uuid"]), 0)
+    checked = [bool(current) and o["uuid"] == current["uuid"] for o in ordered]
+    if not any(checked):
+        checked[0] = True
     if not _interactive(a):
-        return ordered[default], orgs_by_dir
+        return [o for o, on in zip(ordered, checked) if on], orgs_by_dir
     labels = [f"{o['name']}  ({', '.join(tilde(p) for p, x in orgs_by_dir.items() if x and x['uuid'] == o['uuid'])})"
               for o in ordered]
-    return ordered[tui.select("Which organization should ccherd use?", labels, default,
-                              flag="--organization NAME")], orgs_by_dir
+    picked, _ = tui.checkbox("Which organizations should ccherd use? (several private plans: tick each)", labels,
+                             checked, short=[o["name"] for o in ordered], flag="--organization NAME (repeatable)")
+    if not picked:
+        raise SystemExit("ccherd: no organization chosen - nothing to set up")
+    return [ordered[i] for i in picked], orgs_by_dir
 
 
 def _was_chosen(c: Choice, previous: Settings | None) -> bool:

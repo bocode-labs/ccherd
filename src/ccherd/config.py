@@ -60,11 +60,11 @@ def schema_members(schema: Path) -> list[Path]:
 @dataclass
 class Settings:
     """What `ccherd setup` saved: fixed dirs, schemas that pick up numbered dirs at run
-    time, and the one organization ({"uuid", "name"}) whose seats count."""
+    time, and the organizations ([{"uuid", "name"}]) whose seats count - None: any."""
 
     dirs: list[Path]
     schemas: list[Path]
-    organization: dict | None = None
+    organizations: list[dict] | None = None
 
     def all_accounts(self) -> list[Account]:
         """Every listed dir, whichever organization it belongs to."""
@@ -76,16 +76,16 @@ class Settings:
         return list(seen.values())
 
     def accounts(self) -> list[Account]:
-        """The listed dirs, minus those known to belong to another organization."""
+        """The listed dirs, minus those known to belong to an organization not chosen."""
         return [a for a in self.all_accounts() if self.belongs(a)]
 
     def belongs(self, account: Account) -> bool:
         from .profile import cached_profile, organization  # profile imports this module
 
-        if not self.organization:
+        if not self.organizations:
             return True
         org = organization(cached_profile(account.dir))
-        return org is None or org["uuid"] == self.organization["uuid"]
+        return org is None or org["uuid"] in {o["uuid"] for o in self.organizations}
 
 
 def is_configured() -> bool:
@@ -98,7 +98,8 @@ def load_settings() -> Settings:
     data = json.loads(CONFIG_FILE.read_text())
     return Settings(dirs=[Path(d).expanduser() for d in data.get("dirs", [])],
                     schemas=[Path(s).expanduser() for s in data.get("schemas", [])],
-                    organization=data.get("organization"))
+                    organizations=data.get("organizations") or ([data["organization"]] if data.get("organization")
+                                                                 else None))
 
 
 def load_accounts() -> list[Account]:
@@ -108,8 +109,9 @@ def load_accounts() -> list[Account]:
 def save_settings(settings: Settings) -> None:
     """Write the accounts part of the config; the policy (`ccherd config`) is kept as it is."""
     data = _read_raw()
+    data.pop("organization", None)  # written by 0.2.x, before several organizations were possible
     data.update(dirs=[tilde(p) for p in settings.dirs], schemas=[tilde(p) for p in settings.schemas],
-                organization=settings.organization)
+                organizations=settings.organizations)
     _write_raw(data)
 
 

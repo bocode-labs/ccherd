@@ -37,10 +37,13 @@ It asks:
    how many subscriptions you have, creates numbered dirs next to your current
    one (`~/.claude`, `~/.claude-2`, ...), prints the command to log in to each,
    and stops. Log in, then run `ccherd setup` again.
-1. **Which organization.** If your dirs are logged in to more than one (say a
-   private plan and a company team), ccherd uses one of them: subagents should
-   run with the same skills and memories as their caller. Dirs of other
-   organizations are left out, even if a pattern matches them.
+1. **Which organizations.** Every login belongs to an organization: a company
+   team, or for a private plan "<name>'s Organization". If your dirs span more
+   than one, you tick the ones ccherd may use - typically your company team, or
+   all your private plans. Subagents should run with the same skills and
+   memories as their caller, so a private plan next to a company team usually
+   stays out. Dirs of other organizations are left out, even if a pattern
+   matches them.
 2. **Which config dirs are your accounts.** It lists every `~/.claude*` dir.
    A numbered family like `~/.claude-work`, `~/.claude-work2`, `~/.claude-work3`
    gets one extra line: tick it to save the pattern, so `~/.claude-work4` is
@@ -58,14 +61,15 @@ At the end it runs `ccherd doctor`.
 A subagent should behave like the session that started it. So all accounts
 should share `skills`, `projects` (memories and conversations), `agents`,
 `plugins`, `settings.json` and `CLAUDE.md`: one account holds them, the others
-symlink to it. `ccherd doctor` shows what is linked; `ccherd doctor --fix`
-links the rest. An account's own copy is merged into the shared one first;
+symlink to it. This is optional: `ccherd doctor` only warns about what is not
+linked, and `ccherd doctor --fix` links it when you want that. An account's own copy is merged into the shared one first;
 files that differ stay in a `*.ccherd-backup-*` dir next to it. Nothing is
 deleted.
 
 Every question has a flag, so setup also runs without a terminal:
 `ccherd setup --list` shows what there is, then for example
-`ccherd setup --organization "Acme" --schema ~/.claude-work --skill repo --claude-local`.
+`ccherd setup --organization "Acme" --schema ~/.claude-work --skill repo --claude-local`
+(`--organization` can be given several times).
 `ccherd setup --help` lists all flags.
 
 ### Let your agent do it

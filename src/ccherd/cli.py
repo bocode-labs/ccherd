@@ -57,8 +57,9 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--dir", action="append", metavar="PATH", help="a config dir to use (repeatable; skips the picker)")
     s.add_argument("--schema", action="append", metavar="PATH",
                    help="use PATH and every numbered sibling, e.g. ~/.claude-work (repeatable; skips the picker)")
-    s.add_argument("--organization", metavar="NAME",
-                   help="use only accounts of this organization (as `ccherd doctor` names it)")
+    s.add_argument("--organization", metavar="NAME", action="append",
+                   help="use accounts of this organization (name as `--list` shows it); repeatable - "
+                        "several private plans are several organizations")
     s.add_argument("--skill", choices=setup.SKILL_TARGETS, help="where to install the skill")
     s.add_argument("--claude-local", action=argparse.BooleanOptionalAction, default=None,
                    help="add a ccherd note to CLAUDE.local.md")

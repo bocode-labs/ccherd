@@ -82,6 +82,15 @@ class Renewal(unittest.TestCase):
             self.assertEqual(run.call_args.kwargs["env"]["CLAUDE_CONFIG_DIR"], "/h/.claude-x")
 
 
+class OldConfig(unittest.TestCase):
+    def test_a_single_organization_from_0_2_is_read_as_a_list(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(config, "CONFIG_FILE", Path(tmp) / "c.json"):
+            (Path(tmp) / "c.json").write_text('{"dirs": [], "schemas": [], "organization": {"uuid": "t", "name": "T"}}')
+            self.assertEqual(config.load_settings().organizations, [{"uuid": "t", "name": "T"}])
+            config.save_settings(config.load_settings())
+            self.assertNotIn('"organization"', (Path(tmp) / "c.json").read_text())
+
+
 class Policy(unittest.TestCase):
     def test_settings_survive_a_new_setup_and_are_validated(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch.object(config, "CONFIG_FILE", Path(tmp) / "c.json"):

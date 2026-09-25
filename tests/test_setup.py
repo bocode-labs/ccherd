@@ -73,6 +73,7 @@ if __name__ == "__main__":
 
 class OrganizationChoice(unittest.TestCase):
     ORGS = {Path("/h/.claude"): {"uuid": "p", "name": "Private"},
+            Path("/h/.claude-2"): {"uuid": "p2", "name": "Private 2"},
             Path("/h/.claude-mpp"): {"uuid": "t", "name": "Team"},
             Path("/h/.claude-mpp2"): {"uuid": "t", "name": "Team"}}
 
@@ -84,16 +85,20 @@ class OrganizationChoice(unittest.TestCase):
              mock.patch.object(setup, "fetch_profile", side_effect=lambda p: p), \
              mock.patch.object(setup, "organization", side_effect=lambda p: self.ORGS[p]), \
              mock.patch("ccherd.config.current_dir", return_value=Path(current)):
-            return setup._choose_organization(a, list(self.ORGS))[0]
+            orgs = setup._choose_organizations(a, list(self.ORGS))[0]
+        return None if orgs is None else [o["name"] for o in orgs]
 
     def test_defaults_to_the_organization_of_the_current_account(self):
-        self.assertEqual(self.choose("/h/.claude-mpp2")["name"], "Team")
-        self.assertEqual(self.choose("/h/.claude")["name"], "Private")
+        self.assertEqual(self.choose("/h/.claude-mpp2"), ["Team"])
+        self.assertEqual(self.choose("/h/.claude"), ["Private"])
 
-    def test_the_flag_picks_by_name_and_rejects_unknown_names(self):
-        self.assertEqual(self.choose("/h/.claude", organization="Team")["uuid"], "t")
+    def test_several_organizations_can_be_chosen_by_flag(self):
+        self.assertEqual(self.choose("/h/.claude", organization=["Private", "Private 2"]), ["Private", "Private 2"])
         with self.assertRaises(SystemExit):
-            self.choose("/h/.claude", organization="Nope")
+            self.choose("/h/.claude", organization=["Nope"])
+
+    def test_dirs_chosen_by_hand_are_not_filtered(self):
+        self.assertIsNone(self.choose("/h/.claude", yes=False, dir=["/h/.claude", "/h/.claude-2"]))
 
 
 class Keys(unittest.TestCase):

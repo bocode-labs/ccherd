@@ -96,10 +96,13 @@ class Organization(unittest.TestCase):
             for name in (".claude", ".claude-2", ".claude-3"):
                 (home / name).mkdir()
             orgs = {".claude": profile("u1", "private"), ".claude-2": profile("u1", "team"), ".claude-3": None}
-            s = Settings(dirs=[], schemas=[home / ".claude"], organization={"uuid": "team", "name": "Team"})
+            s = Settings(dirs=[], schemas=[home / ".claude"], organizations=[{"uuid": "team", "name": "Team"}])
             with mock.patch("ccherd.profile.cached_profile", side_effect=lambda cfg: orgs[cfg.name]):
                 self.assertEqual([a.label for a in s.accounts()], ["2", "3"])  # unknown stays in
                 self.assertEqual(len(s.all_accounts()), 3)
+                # two private plans are two organizations; choosing both keeps both
+                s.organizations = [{"uuid": "private", "name": "A"}, {"uuid": "team", "name": "B"}]
+                self.assertEqual([a.label for a in s.accounts()], ["default", "2", "3"])
 
 
 class NewAccounts(unittest.TestCase):

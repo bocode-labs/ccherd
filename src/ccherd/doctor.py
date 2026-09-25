@@ -1,6 +1,6 @@
 """`ccherd doctor [--fix]`: is everything in place for ccherd to work?
 
-Prints a general block (claude CLI, config, organization, skill), then one block
+Prints a general block (claude CLI, config, organizations, skill), then one block
 per account with a line per check: login, organization, access token, seat, and
 whether each shared item links to the primary account. `--fix` links what is not
 linked yet, merging an account's own copy into the primary first.
@@ -97,7 +97,8 @@ def add_link_checks(reports: list[AccountReport], main: Account, items: list[lin
         if it.state == links.LINKED:
             by_account[it.account].add(OK, it.name, f"-> {target}")
         else:
-            by_account[it.account].add(WARN, it.name, f"{it.state}, not linked to {target} - `ccherd doctor --fix`")
+            by_account[it.account].add(WARN, it.name, f"{it.state}, not linked to {target} (optional; "
+                                                      "`ccherd doctor --fix` links it)")
 
 
 def skill_locations(root: Path, accounts: list[Account]) -> list[Path]:
@@ -136,9 +137,8 @@ def report(root: Path) -> bool:
     version = claude_version()
     general.append(Check(OK if version else FAIL, "claude CLI", version or "not on PATH - install Claude Code"))
     general.append(Check(OK, "config", tilde(config.CONFIG_FILE)))
-    org = settings.organization
-    general.append(Check(OK if org else WARN, "organization",
-                         org["name"] if org else "none chosen - every listed dir counts (`ccherd setup` asks)"))
+    orgs = settings.organizations
+    general.append(Check(OK, "organizations", ", ".join(o["name"] for o in orgs) if orgs else "any"))
     general.append(skill_check(root, accounts))
     if len(accounts) == 1:
         general.append(Check(WARN, "accounts", "only one - nothing to spread quota across"))
@@ -156,7 +156,7 @@ def report(root: Path) -> bool:
         _block(f"{r.account.label}  {tilde(r.account.dir)}", r.checks)
     for a in settings.all_accounts():
         if a not in accounts:
-            print(f"\n{SKIP:4}  {tilde(a.dir)} belongs to another organization and is not used")
+            print(f"\n{SKIP:4}  {tilde(a.dir)} belongs to an organization not chosen and is not used")
 
     checks = general + [c for r in reports for c in r.checks]
     fails, warns = sum(c.status == FAIL for c in checks), sum(c.status == WARN for c in checks)
