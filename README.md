@@ -63,11 +63,26 @@ links the rest. An account's own copy is merged into the shared one first;
 files that differ stay in a `*.ccherd-backup-*` dir next to it. Nothing is
 deleted.
 
-Non-interactive: `ccherd setup --new 3`, or `ccherd setup --organization "Acme" --schema ~/.claude-work --dir ~/.claude --skill repo --claude-local`.
+Every question has a flag, so setup also runs without a terminal:
+`ccherd setup --list` shows what there is, then for example
+`ccherd setup --organization "Acme" --schema ~/.claude-work --skill repo --claude-local`.
+`ccherd setup --help` lists all flags.
+
+### Let your agent do it
+
+Point your agent at this repo and tell it:
+
+> Set up ccherd for me, following https://github.com/bocode-labs/ccherd/blob/main/docs/agent-setup.md
+
+It installs ccherd, shows you what it found, asks you the few questions that
+are yours to answer, and checks the result with `ccherd doctor`. Logging in to
+a new account opens a browser, so that part stays with you.
 
 Config is stored in `~/.config/ccherd/config.json`.
 
 ## Commands
+
+`ccherd --help` explains every command and all its arguments.
 
 | Command | What it does |
 | --- | --- |
@@ -97,6 +112,12 @@ ccherd never refreshes an OAuth token itself - the refresh token rotates, so
 that would log out the Claude Code instance that owns the account. When an
 access token has expired and no session runs on that account, it lets Claude
 Code renew it (`claude auth status`).
+
+## Contributing
+
+If you are using this and have trouble during setup: we welcome PRs that
+improve it for everyone. If you ran the setup through an agent and something
+did not go smoothly, please open a PR too.
 
 ## Development
 
