@@ -89,6 +89,8 @@ Config is stored in `~/.config/ccherd/config.json`.
 | `ccherd setup` | Pick accounts, install the skill |
 | `ccherd doctor` | Per account: login, organization, token, shared config |
 | `ccherd doctor --fix` | Symlink every account's skills, memories etc. to one shared place |
+| `ccherd usage` | Every limit per account as a bar, plus extra usage spent |
+| `ccherd config` | Show settings; `ccherd config when-saturated use` changes one |
 | `ccherd accounts` | 5-hour and weekly usage per account, and which one `auto` picks |
 | `ccherd sessions` | Live Claude sessions of all accounts |
 | `ccherd spawn NAME "task" --model M` | Start a background subagent on the best account |
@@ -107,6 +109,11 @@ reports back to the session that started it as a message.
 Score = weekly % left ÷ hours until the weekly reset × free share of the 5-hour
 window. The highest score wins. Accounts at ≥ 90 % of their 5-hour window or
 ≥ 98 % of their week are skipped.
+
+When every account is past its limits, `spawn` refuses by default.
+`ccherd config when-saturated use` makes it spawn anyway, on an account that
+has extra usage enabled. The limits themselves are settings too
+(`five-hour-limit`, `weekly-limit`). Change them any time.
 
 ccherd never refreshes an OAuth token itself - the refresh token rotates, so
 that would log out the Claude Code instance that owns the account. When an

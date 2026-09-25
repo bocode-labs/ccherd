@@ -106,9 +106,58 @@ def load_accounts() -> list[Account]:
 
 
 def save_settings(settings: Settings) -> None:
+    """Write the accounts part of the config; the policy (`ccherd config`) is kept as it is."""
+    data = _read_raw()
+    data.update(dirs=[tilde(p) for p in settings.dirs], schemas=[tilde(p) for p in settings.schemas],
+                organization=settings.organization)
+    _write_raw(data)
+
+
+# --- policy: `ccherd config` ------------------------------------------------------
+
+POLICY_DEFAULTS = {
+    "when-saturated": "refuse",
+    "five-hour-limit": 90,
+    "weekly-limit": 98,
+}
+POLICY_HELP = {
+    "when-saturated": "refuse | use - when every account is past its limits: refuse to spawn, or use the "
+                      "account that can still run (extra usage enabled) anyway",
+    "five-hour-limit": "percent of the 5-hour window at which an account is no longer picked (1-100)",
+    "weekly-limit": "percent of the week at which an account is no longer picked (1-100)",
+}
+
+
+def policy() -> dict:
+    return {**POLICY_DEFAULTS, **(_read_raw().get("policy") or {})}
+
+
+def set_policy(key: str, value: str) -> object:
+    if key not in POLICY_DEFAULTS:
+        raise SystemExit(f"ccherd: unknown setting {key!r} (have: {', '.join(POLICY_DEFAULTS)})")
+    if key == "when-saturated":
+        if value not in ("refuse", "use"):
+            raise SystemExit("ccherd: when-saturated is refuse or use")
+        parsed: object = value
+    else:
+        if not value.isdigit() or not 1 <= int(value) <= 100:
+            raise SystemExit(f"ccherd: {key} is a whole number from 1 to 100")
+        parsed = int(value)
+    data = _read_raw()
+    data.setdefault("policy", {})[key] = parsed
+    _write_raw(data)
+    return parsed
+
+
+def _read_raw() -> dict:
+    try:
+        return json.loads(CONFIG_FILE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_raw(data: dict) -> None:
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    data = {"dirs": [tilde(p) for p in settings.dirs], "schemas": [tilde(p) for p in settings.schemas],
-            "organization": settings.organization}
     CONFIG_FILE.write_text(json.dumps(data, indent=2) + "\n")
 
 

@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import __version__, agents, commands, doctor, setup
+from . import __version__, agents, commands, config, doctor, setup
 from .permissions import MODES
 
 
@@ -77,6 +77,18 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--refresh", action="store_true", help="ignore the 60s cache")
     s.add_argument("--json", action="store_true", help="machine-readable")
     s.set_defaults(fn=commands.accounts)
+
+    s = sub.add_parser("usage", help="every limit and the extra usage, per account")
+    s.add_argument("--refresh", action="store_true", help="ignore the 60s cache")
+    s.add_argument("--json", action="store_true", help="the raw readings")
+    s.set_defaults(fn=commands.usage)
+
+    s = sub.add_parser("config", help="show or change a setting, e.g. when-saturated",
+                       epilog="Settings: " + "; ".join(f"{k} (default {v}): {config.POLICY_HELP[k]}"
+                                                       for k, v in config.POLICY_DEFAULTS.items()))
+    s.add_argument("key", nargs="?", help="the setting; without it, all settings are shown")
+    s.add_argument("value", nargs="?", help="the new value; without it, the current one is shown")
+    s.set_defaults(fn=commands.settings)
 
     s = sub.add_parser("sessions", help="live sessions of all accounts")
     s.add_argument("--json", action="store_true", help="machine-readable")

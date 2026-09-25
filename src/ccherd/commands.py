@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
 import signal
+import sys
 import time
 from argparse import Namespace
 
 from . import agents, config
 from .agents import TERMINAL, locked
+from .config import tilde
 from .fmt import fmt_age, fmt_ts
 from .permissions import caller_mode, check_not_wider, mode_class
+from .profile import cached_profile, organization
 from .sessions import deliver, find_session, live_sessions, session_by_socket
-from .usage import pick_account, rank_accounts
+from .tui import RESET
+from .usage import fetch_usage, pick_account, rank_accounts
 
 
 def _own_account() -> str | None:
@@ -45,6 +50,82 @@ def accounts(a: Namespace) -> int:
               f"{r.get('weekly', 0):>4.0f}% {fmt_ts(r.get('weekly_reset')):>16} {r.get('rate', 0):>6.2f} "
               f"{sc:>6}  {r['reason']}{pick}")
     print("* = this session's account; score = weekly % left per hour until reset x free share of the 5h window")
+    return 0
+
+
+LIMIT_NAMES = {"session": "5 hours", "weekly_all": "week"}
+SEVERITY_COLOR = {"warning": "\x1b[33m", "critical": "\x1b[31m"}
+
+
+def usage(a: Namespace) -> int:
+    """Per account: every limit as a bar, and the extra usage."""
+    rows = [(acct, fetch_usage(acct, refresh=a.refresh)) for acct in config.load_accounts()]
+    if a.json:
+        print(json.dumps([{"account": acct.label, **u} for acct, u in rows], indent=1))
+        return 0
+    for acct, u in rows:
+        org = organization(cached_profile(acct.dir))
+        print(f"\n{acct.label}  {tilde(acct.dir)}" + (f"  {org['name']}" if org else ""))
+        data = u.get("usage")
+        if u.get("error"):
+            print(f"  {u['error']}" + (f" - last reading {fmt_ts(u.get('stale_since'))}" if data else ""))
+        if not data:
+            continue
+        for name, percent, severity, resets in limit_rows(data):
+            color = SEVERITY_COLOR.get(severity, "") if sys.stdout.isatty() else ""
+            reset = f"resets {fmt_ts(resets)}" if resets else ""
+            print(f"  {name:13} {color}{bar(percent)} {percent:>3.0f}%{RESET if color else ''}  {reset}")
+        print(f"  {'extra usage':13} {extra_usage(data)}")
+    return 0
+
+
+def limit_rows(data: dict) -> list[tuple[str, float, str, float | None]]:
+    """(name, percent, severity, reset time) for each limit the plan has."""
+    out = []
+    for lim in data.get("limits") or []:
+        model = (((lim.get("scope") or {}).get("model") or {}).get("display_name"))
+        name = LIMIT_NAMES.get(lim.get("kind")) or (f"week {model}" if model else lim.get("kind", "?"))
+        out.append((name, float(lim.get("percent") or 0), lim.get("severity") or "", _ts(lim.get("resets_at"))))
+    if out:
+        return out
+    for key, name in (("five_hour", "5 hours"), ("seven_day", "week")):  # readings without `limits`
+        if data.get(key):
+            out.append((name, float(data[key].get("utilization") or 0), "", _ts(data[key].get("resets_at"))))
+    return out
+
+
+def extra_usage(data: dict) -> str:
+    extra, spend = data.get("extra_usage") or {}, data.get("spend") or {}
+    if not extra.get("is_enabled"):
+        return "off"
+    used = spend.get("used") or {}
+    if used.get("amount_minor") is None:
+        return "on"
+    amount = used["amount_minor"] / 10 ** (used.get("exponent") or 0)
+    return f"on - {amount:,.2f} {used.get('currency', '')} used so far"
+
+
+def bar(percent: float, width: int = 20) -> str:
+    filled = round(min(max(percent, 0), 100) / 100 * width)
+    return "\u2588" * filled + "\u2591" * (width - filled)
+
+
+def _ts(s: str | None) -> float | None:
+    return dt.datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp() if s else None
+
+
+def settings(a: Namespace) -> int:
+    """`ccherd config [KEY [VALUE]]`: show or change a setting."""
+    config.load_settings()  # not set up -> exit 3 like every other command
+    if a.key and a.value is not None:
+        print(f"{a.key} = {config.set_policy(a.key, a.value)}")
+        return 0
+    pol = config.policy()
+    for key in ([a.key] if a.key else config.POLICY_DEFAULTS):
+        if key not in pol:
+            raise SystemExit(f"ccherd: unknown setting {key!r} (have: {', '.join(config.POLICY_DEFAULTS)})")
+        mark = "" if pol[key] == config.POLICY_DEFAULTS[key] else "   (changed)"
+        print(f"{key:16} {pol[key]!s:8} {config.POLICY_HELP[key]}{mark}")
     return 0
 
 

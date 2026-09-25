@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import sys
 import time
 import urllib.error
 
@@ -69,7 +70,24 @@ def model_family(model: str | None) -> str | None:
     return next((fam for fam in ("opus", "sonnet", "haiku", "fable") if fam in m), None)
 
 
-def score(usage: dict | None, model: str | None, now: float) -> dict:
+def model_limit(usage: dict, model: str | None) -> dict | None:
+    """The weekly limit that applies to this model only, if the plan has one.
+
+    Newer plans report it in `limits` (kind "weekly_scoped", with the model's display
+    name); older readings used seven_day_<family>.
+    """
+    fam = model_family(model)
+    if not fam:
+        return None
+    for lim in usage.get("limits") or []:
+        name = (((lim.get("scope") or {}).get("model") or {}).get("display_name") or "").lower()
+        if lim.get("kind") == "weekly_scoped" and fam in name:
+            return {"utilization": lim.get("percent"), "resets_at": lim.get("resets_at")}
+    return usage.get(f"seven_day_{fam}")
+
+
+def score(usage: dict | None, model: str | None, now: float,
+          five_gate: float = FIVE_HOUR_GATE, week_gate: float = WEEKLY_GATE) -> dict:
     """How urgently this account should be used for `model`. Higher = pick first.
 
     Returns {"score": float | None, "reason": str, ...}; score None means excluded.
@@ -78,8 +96,7 @@ def score(usage: dict | None, model: str | None, now: float) -> dict:
         return {"score": None, "reason": "no usage data"}
     five = usage.get("five_hour") or {}
     week = usage.get("seven_day") or {}
-    fam = model_family(model)
-    per_model = usage.get(f"seven_day_{fam}") if fam else None
+    per_model = model_limit(usage, model)
 
     five_u = float(five.get("utilization") or 0.0)
     five_reset = _parse_ts(five.get("resets_at"))
@@ -97,10 +114,11 @@ def score(usage: dict | None, model: str | None, now: float) -> dict:
     hours = max(((week_reset or now + 7 * 86400) - now) / 3600, 0.5)
     rate = (100.0 - week_u) / hours
     info = {"five_hour": five_u, "five_hour_reset": five_reset, "weekly": week_u,
-            "weekly_reset": week_reset, "hours_to_weekly_reset": hours, "rate": rate}
-    if five_u >= FIVE_HOUR_GATE:
+            "weekly_reset": week_reset, "hours_to_weekly_reset": hours, "rate": rate,
+            "extra_usage": bool((usage.get("extra_usage") or {}).get("is_enabled"))}
+    if five_u >= five_gate:
         return {**info, "score": None, "reason": f"5h window at {five_u:.0f}%"}
-    if week_u >= WEEKLY_GATE:
+    if week_u >= week_gate:
         return {**info, "score": None, "reason": f"weekly at {week_u:.0f}%"}
     return {**info, "score": rate * (1.0 - five_u / 100.0),
             "reason": f"{100 - week_u:.0f}% weekly left over {hours:.0f}h"}
@@ -109,10 +127,11 @@ def score(usage: dict | None, model: str | None, now: float) -> dict:
 def rank_accounts(model: str | None, *, refresh: bool = False) -> list[dict]:
     """Every configured account with its score, best first. Assumes all accounts are the same tier."""
     now = time.time()
+    pol = config.policy()
     rows = []
     for account in config.load_accounts():
         u = fetch_usage(account, refresh=refresh)
-        s = score(u.get("usage"), model, now)
+        s = score(u.get("usage"), model, now, pol["five-hour-limit"], pol["weekly-limit"])
         if u.get("error") and u.get("usage"):
             # Expired token: nothing on this machine used the account since the
             # reading, so the old numbers are a fair estimate, and an idle account is
@@ -125,12 +144,27 @@ def rank_accounts(model: str | None, *, refresh: bool = False) -> list[dict]:
     return rows
 
 
+def pick_when_saturated(rows: list[dict]) -> dict | None:
+    """With every account past its limits: the one that can still run - extra usage on - and
+    of those the least loaded. None when no account has usage data."""
+    known = [r for r in rows if "five_hour" in r]
+    if not known:
+        return None
+    return min(known, key=lambda r: (not r.get("extra_usage"), r["five_hour"] >= 100, r["weekly"], r["five_hour"]))
+
+
 def pick_account(model: str | None) -> str:
     rows = rank_accounts(model)
     if rows and rows[0]["score"] is not None:
         return rows[0]["account"]
+    if config.policy()["when-saturated"] == "use" and (pick := pick_when_saturated(rows)):
+        how = "extra usage" if pick.get("extra_usage") else "no extra usage enabled, so it may hit its limit"
+        print(f"ccherd: every account is past its limits; using {pick['account']} anyway ({how}) "
+              "because when-saturated is 'use'", file=sys.stderr)
+        return pick["account"]
     lines = [f"  {r['account']}: {r['reason']}" for r in rows]
     frees = [r["five_hour_reset"] for r in rows if r.get("five_hour_reset")]
     hint = f"\n  next 5h window frees at {fmt_ts(min(frees))}" if frees else ""
     raise SystemExit("ccherd: every account is saturated - using one now would be extra usage.\n"
-                     + "\n".join(lines) + hint + "\n  pass --account LABEL to use one anyway.")
+                     + "\n".join(lines) + hint + "\n  pass --account LABEL to use one anyway, or allow it for good: "
+                     "ccherd config when-saturated use")

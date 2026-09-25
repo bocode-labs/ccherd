@@ -22,3 +22,17 @@ class FullHelp(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UsageReport(unittest.TestCase):
+    def test_limits_and_extra_usage_are_read_from_the_reading(self):
+        from ccherd import commands
+        data = {"limits": [{"kind": "session", "percent": 87, "severity": "warning", "resets_at": None},
+                           {"kind": "weekly_scoped", "percent": 3, "scope": {"model": {"display_name": "Fable"}}}],
+                "extra_usage": {"is_enabled": True},
+                "spend": {"used": {"amount_minor": 241643, "currency": "EUR", "exponent": 2}}}
+        self.assertEqual([r[:3] for r in commands.limit_rows(data)],
+                         [("5 hours", 87.0, "warning"), ("week Fable", 3.0, "")])
+        self.assertEqual(commands.extra_usage(data), "on - 2,416.43 EUR used so far")
+        self.assertEqual(commands.extra_usage({"extra_usage": {"is_enabled": False}}), "off")
+        self.assertEqual(commands.bar(50, width=4), "██░░")

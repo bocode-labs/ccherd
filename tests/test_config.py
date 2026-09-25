@@ -80,3 +80,18 @@ class Renewal(unittest.TestCase):
             credentials.fresh_oauth(Path("/h/.claude-x"))
             self.assertEqual(run.call_args.args[0], ["claude", "auth", "status"])
             self.assertEqual(run.call_args.kwargs["env"]["CLAUDE_CONFIG_DIR"], "/h/.claude-x")
+
+
+class Policy(unittest.TestCase):
+    def test_settings_survive_a_new_setup_and_are_validated(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(config, "CONFIG_FILE", Path(tmp) / "c.json"):
+            config.save_settings(Settings(dirs=[], schemas=[]))
+            self.assertEqual(config.policy()["when-saturated"], "refuse")
+            config.set_policy("when-saturated", "use")
+            config.set_policy("five-hour-limit", "100")
+            config.save_settings(Settings(dirs=[Path(tmp)], schemas=[]))  # setup runs again
+            self.assertEqual(config.policy()["when-saturated"], "use")
+            self.assertEqual(config.policy()["five-hour-limit"], 100)
+            for key, value in (("when-saturated", "maybe"), ("weekly-limit", "0"), ("nope", "1")):
+                with self.assertRaises(SystemExit):
+                    config.set_policy(key, value)
