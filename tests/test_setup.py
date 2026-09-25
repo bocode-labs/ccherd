@@ -101,3 +101,19 @@ class Keys(unittest.TestCase):
         from ccherd.tui import _keys
         self.assertEqual(_keys(b"\x1bOB\x1b[Bab\r"), [b"\x1bOB", b"\x1b[B", b"a", b"b", b"\r"])
         self.assertEqual(_keys(b"\x1b"), [b"\x1b"])
+
+
+class Unattended(unittest.TestCase):
+    def args(self, **kw):
+        base = {"yes": False, "new": None, "dir": None, "schema": None, "skill": None, "claude_local": None}
+        return mock.Mock(**{**base, **kw})
+
+    def test_every_unanswered_question_is_named(self):
+        self.assertEqual(setup.missing_answers(self.args()),
+                         ["--dir/--schema (or --new N)", "--skill repo|home|none", "--claude-local/--no-claude-local"])
+        self.assertEqual(setup.missing_answers(self.args(schema=["~/.claude-w"], skill="none")),
+                         ["--claude-local/--no-claude-local"])
+
+    def test_yes_and_new_need_nothing_else(self):
+        self.assertEqual(setup.missing_answers(self.args(yes=True)), [])
+        self.assertEqual(setup.missing_answers(self.args(new=3)), [])

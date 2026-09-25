@@ -2,7 +2,8 @@
 
 On a terminal the lists are arrow-key menus drawn in place below the cursor
 (no full-screen mode, so they behave the same in tmux, IDE terminals and SSH).
-Without a terminal they fall back to numbered prompts on stdin.
+Without a terminal - an agent's shell, CI - nothing is asked: the prompt exits
+and names the flag that answers it instead.
 """
 
 from __future__ import annotations
@@ -22,23 +23,31 @@ ABORT = {b"\x03", b"\x1b", b"q"}
 BOLD, DIM, REVERSE, CYAN, RESET = "\x1b[1m", "\x1b[2m", "\x1b[7m", "\x1b[36m", "\x1b[0m"
 
 
-def _tty() -> bool:
+def has_terminal() -> bool:
     return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+_tty = has_terminal
 
 
 def color() -> bool:
     return sys.stdout.isatty()
 
 
+def _require_tty(question: str, flag: str) -> None:
+    if not _tty():
+        raise SystemExit(f"ccherd: no terminal to ask \"{question}\" - answer it with {flag}, "
+                         "or pass --yes for the defaults (`ccherd setup --help` lists every flag)")
+
+
 def checkbox(title: str, options: list[str], checked: list[bool], short: list[str] | None = None,
-             other: str | None = None) -> tuple[list[int], str]:
+             other: str | None = None, flag: str = "flags") -> tuple[list[int], str]:
     """Indexes of the options the user ticked, and the text typed into the `other` line.
 
     With `other` set, the list ends in a line the user types into directly; typing
     ticks it. `short` names the options in the one-line summary.
     """
-    if not _tty():
-        return _checkbox_plain(title, options, checked, other)
+    _require_tty(title, flag)
     checked = list(checked) + ([False] if other else [])
     text = ""
     last = len(options)  # index of the `other` line, if any
@@ -78,10 +87,9 @@ def checkbox(title: str, options: list[str], checked: list[bool], short: list[st
     return picked, typed
 
 
-def select(title: str, options: list[str], default: int = 0) -> int:
+def select(title: str, options: list[str], default: int = 0, flag: str = "flags") -> int:
     """Index of the one option the user picked."""
-    if not _tty():
-        return _select_plain(title, options, default)
+    _require_tty(title, flag)
 
     def lines(cursor: int) -> list[str]:
         return [f"{'>' if i == cursor else ' '} {opt}" for i, opt in enumerate(options)]
@@ -92,14 +100,15 @@ def select(title: str, options: list[str], default: int = 0) -> int:
     return cursor
 
 
-def confirm(question: str, default: bool = True) -> bool:
-    raw = input(f"{BOLD}{question}{RESET} [{'Y/n' if default else 'y/N'}] " if _tty() else
-                f"{question} [{'Y/n' if default else 'y/N'}] ").strip().lower()
+def confirm(question: str, default: bool = True, flag: str = "flags") -> bool:
+    _require_tty(question, flag)
+    raw = input(f"{BOLD}{question}{RESET} [{'Y/n' if default else 'y/N'}] ").strip().lower()
     return default if not raw else raw.startswith("y")
 
 
-def ask(question: str) -> str:
-    return input(f"{BOLD}{question}{RESET} " if _tty() else f"{question} ").strip()
+def ask(question: str, flag: str = "flags") -> str:
+    _require_tty(question, flag)
+    return input(f"{BOLD}{question}{RESET} ").strip()
 
 
 # --- drawing --------------------------------------------------------------------
@@ -191,27 +200,3 @@ def _hidden_cursor():
     finally:
         sys.stdout.write("\x1b[?25h")
         sys.stdout.flush()
-
-
-# --- without a terminal -----------------------------------------------------------
-
-
-def _checkbox_plain(title: str, options: list[str], checked: list[bool], other: str | None) -> tuple[list[int], str]:
-    print(title)
-    for i, (opt, on) in enumerate(zip(options, checked), 1):
-        print(f"  {i}) [{'x' if on else ' '}] {opt}")
-    raw = input("Numbers to use, separated by spaces (empty = keep marked): ").split()
-    if raw:
-        picked = [int(n) - 1 for n in raw if n.isdigit() and 0 < int(n) <= len(options)]
-    else:
-        picked = [i for i, on in enumerate(checked) if on]
-    typed = input(f"{other} (empty = none): ").strip() if other else ""
-    return picked, typed
-
-
-def _select_plain(title: str, options: list[str], default: int) -> int:
-    print(title)
-    for i, opt in enumerate(options, 1):
-        print(f"  {i}) {opt}")
-    raw = input(f"Choice [{default + 1}]: ").strip()
-    return int(raw) - 1 if raw.isdigit() and 0 < int(raw) <= len(options) else default

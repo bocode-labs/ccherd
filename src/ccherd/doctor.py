@@ -185,7 +185,7 @@ def fix(assume_yes: bool) -> int:
         how = {links.MISSING: "link", links.WRONG_LINK: "relink",
                links.OWN_COPY: f"merge into {main.label}, then link"}[it.state]
         print(f"  {it.account.label}/{it.name}: {how}")
-    if not assume_yes and not tui.confirm("Go ahead?", default=False):
+    if not assume_yes and not tui.confirm("Go ahead?", default=False, flag="--yes"):
         return 1
     links.apply(main, todo)
     return 0

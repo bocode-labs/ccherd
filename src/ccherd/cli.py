@@ -15,7 +15,12 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"ccherd {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True, metavar="COMMAND")
 
-    s = sub.add_parser("setup", help="choose accounts, install the skill (run inside your repo)")
+    s = sub.add_parser("setup", help="choose accounts, install the skill (run inside your repo)",
+                       epilog="Without a terminal (an agent's shell) setup asks nothing: answer with the flags "
+                              "above. Start with --list to see what there is. Full walkthrough: "
+                              "https://github.com/bocode-labs/ccherd/blob/main/docs/agent-setup.md")
+    s.add_argument("--list", action="store_true", help="show found config dirs, logins and organizations; change nothing")
+    s.add_argument("--json", action="store_true", help="with --list: machine-readable")
     s.add_argument("--dir", action="append", metavar="PATH", help="a config dir to use (repeatable; skips the picker)")
     s.add_argument("--schema", action="append", metavar="PATH",
                    help="use PATH and every numbered sibling, e.g. ~/.claude-work (repeatable; skips the picker)")

@@ -6,6 +6,7 @@ so setup also runs unattended (`--yes` takes the default for anything not given)
 
 from __future__ import annotations
 
+import json
 import subprocess
 from argparse import Namespace
 from dataclasses import dataclass
@@ -22,6 +23,13 @@ BEGIN, END = "<!-- ccherd:begin -->", "<!-- ccherd:end -->"
 
 
 def run(a: Namespace) -> int:
+    if a.list:
+        return list_candidates(a.json)
+    missing = missing_answers(a)
+    if missing and not tui.has_terminal():
+        raise SystemExit("ccherd: no terminal to ask questions in, and these are not answered by flags: "
+                         + ", ".join(missing) + ". Pass them, or --yes for the defaults. "
+                         "`ccherd setup --list` shows what there is to choose from.")
     root = config.repo_root()
     if a.new or (_interactive(a) and not _has_dirs_already()):
         return _prepare_new_accounts(a.new or _ask_count())
@@ -44,6 +52,43 @@ def run(a: Namespace) -> int:
     return 0
 
 
+def missing_answers(a: Namespace) -> list[str]:
+    """Flags that would otherwise become questions. With --new, setup stops after step 0."""
+    if a.yes or a.new:
+        return []
+    missing = [] if (a.dir or a.schema) else ["--dir/--schema (or --new N)"]
+    if a.skill is None:
+        missing.append("--skill repo|home|none")
+    if a.claude_local is None:
+        missing.append("--claude-local/--no-claude-local")
+    return missing
+
+
+def candidates_info() -> list[dict]:
+    """Every found config dir: login, organization, numbered family, and whether it is the current one."""
+    current = config.current_dir().resolve()
+    out = []
+    for p in config.discover_dirs():
+        logged_in = is_logged_in(p)
+        org = organization(fetch_profile(p)) if logged_in else None
+        family = schema_of(p)
+        out.append({"dir": tilde(p), "logged_in": logged_in, "organization": org["name"] if org else None,
+                    "family": tilde(family) + "*" if len(schema_members(family)) > 1 else None,
+                    "current": p.resolve() == current})
+    return out
+
+
+def list_candidates(as_json: bool) -> int:
+    rows = candidates_info()
+    if as_json:
+        print(json.dumps(rows, indent=1))
+        return 0
+    for r in rows:
+        print(f"{r['dir']:22} {'logged in' if r['logged_in'] else 'not logged in':14} "
+              f"{r['organization'] or '-':36} {r['family'] or '':18}{'  <- current' if r['current'] else ''}")
+    return 0
+
+
 def _interactive(a: Namespace) -> bool:
     return not (a.dir or a.schema or a.yes)
 
@@ -52,12 +97,13 @@ def _interactive(a: Namespace) -> bool:
 
 
 def _has_dirs_already() -> bool:
-    return tui.select("Do you already have a Claude config dir for each of your subscriptions?", ["yes", "no"]) == 0
+    return tui.select("Do you already have a Claude config dir for each of your subscriptions?", ["yes", "no"],
+                      flag="--new N (no dirs yet) or --dir/--schema") == 0
 
 
 def _ask_count() -> int:
     while True:
-        raw = tui.ask("How many Claude subscriptions do you have?")
+        raw = tui.ask("How many Claude subscriptions do you have?", flag="--new N")
         if raw.isdigit() and int(raw) >= 1:
             return int(raw)
         print("please enter a whole number, 1 or more")
@@ -146,7 +192,7 @@ def _choose_accounts(a: Namespace) -> Settings:
         picked, typed = [i for i, on in enumerate(checked) if on], ""
     else:
         picked, typed = tui.checkbox("Your Claude accounts", [c.describe() for c in choices], checked,
-                                     short=[c.short() for c in choices], other=OTHER)
+                                     short=[c.short() for c in choices], other=OTHER, flag="--dir/--schema")
     settings = Settings(dirs=[choices[i].path for i in picked if not choices[i].is_schema],
                         schemas=[choices[i].path for i in picked if choices[i].is_schema], organization=org)
     for item in typed.split():
@@ -182,7 +228,8 @@ def _choose_organization(a: Namespace, found: list[Path]) -> tuple[dict | None, 
         return ordered[default], orgs_by_dir
     labels = [f"{o['name']}  ({', '.join(tilde(p) for p, x in orgs_by_dir.items() if x and x['uuid'] == o['uuid'])})"
               for o in ordered]
-    return ordered[tui.select("Which organization should ccherd use?", labels, default)], orgs_by_dir
+    return ordered[tui.select("Which organization should ccherd use?", labels, default,
+                              flag="--organization NAME")], orgs_by_dir
 
 
 def _was_chosen(c: Choice, previous: Settings | None) -> bool:
@@ -208,7 +255,7 @@ def _choose_skill_target(a: Namespace, accounts: list[config.Account]) -> str:
     labels = ["this repo  (.claude/skills/ccherd, shared via git)",
               f"my accounts  ({describe_skill_homes(accounts)}; all repos, only me)",
               "nowhere"]
-    return SKILL_TARGETS[tui.select("Install the Claude skill in", labels)]
+    return SKILL_TARGETS[tui.select("Install the Claude skill in", labels, flag="--skill repo|home|none")]
 
 
 def skill_homes(accounts: list[config.Account]) -> dict[Path, list[str]]:
@@ -254,7 +301,7 @@ def _choose_claude_local(a: Namespace) -> bool:
         return a.claude_local
     if a.yes:
         return False
-    return tui.confirm("Add a ccherd note to CLAUDE.local.md (git-ignored)?")
+    return tui.confirm("Add a ccherd note to CLAUDE.local.md (git-ignored)?", flag="--claude-local/--no-claude-local")
 
 
 def claude_local_block() -> str:
