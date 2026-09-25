@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import config, links, tui
+from . import version as ccherd_version
 from .config import Account, tilde
 from .credentials import read_oauth
 from .profile import fetch_profile, organization
@@ -130,6 +131,8 @@ def report(root: Path) -> bool:
     accounts = settings.accounts()
 
     general = []
+    current, detail = ccherd_version.status()
+    general.append(Check(WARN if current is False else OK, "ccherd", detail))
     version = claude_version()
     general.append(Check(OK if version else FAIL, "claude CLI", version or "not on PATH - install Claude Code"))
     general.append(Check(OK, "config", tilde(config.CONFIG_FILE)))
