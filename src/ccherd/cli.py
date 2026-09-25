@@ -37,7 +37,7 @@ def full_help(p: argparse.ArgumentParser) -> str:
             lines.pop()
         out.extend("  " + line if line.strip() else "" for line in lines)
         out.append("")
-    out.append("Setting up through an agent: https://github.com/bocode-labs/ccherd/blob/main/docs/agent-setup.md")
+    out.append("Setting up through an agent: https://raw.githubusercontent.com/bocode-labs/ccherd/main/docs/agent-setup.md")
     return "\n".join(out)
 
 
@@ -51,7 +51,7 @@ def parser() -> argparse.ArgumentParser:
     s = sub.add_parser("setup", help="choose accounts, install the skill (run inside your repo)",
                        epilog="Without a terminal (an agent's shell) setup asks nothing: answer with the flags "
                               "above. Start with --list to see what there is. Full walkthrough: "
-                              "https://github.com/bocode-labs/ccherd/blob/main/docs/agent-setup.md")
+                              "https://raw.githubusercontent.com/bocode-labs/ccherd/main/docs/agent-setup.md")
     s.add_argument("--list", action="store_true", help="show found config dirs, logins and organizations; change nothing")
     s.add_argument("--json", action="store_true", help="with --list: machine-readable")
     s.add_argument("--dir", action="append", metavar="PATH", help="a config dir to use (repeatable; skips the picker)")

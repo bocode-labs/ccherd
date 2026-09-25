@@ -72,7 +72,7 @@ Every question has a flag, so setup also runs without a terminal:
 
 Point your agent at this repo and tell it:
 
-> Set up ccherd for me, following https://github.com/bocode-labs/ccherd/blob/main/docs/agent-setup.md
+> Set up ccherd for me, following https://raw.githubusercontent.com/bocode-labs/ccherd/main/docs/agent-setup.md
 
 It installs ccherd, shows you what it found, asks you the few questions that
 are yours to answer, and checks the result with `ccherd doctor`. Logging in to

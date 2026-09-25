@@ -1,6 +1,6 @@
 ---
 name: ccherd
-description: Use when a subagent should run on whichever of the user's Claude accounts has the most quota to spare, when work should be spread across several Claude accounts (separate CLAUDE_CONFIG_DIRs) to avoid extra usage, when a session has to find or message a Claude session running under another account (ListAgents only shows its own account), or when asked about "ccherd", quota per account, "which account has headroom", or "spawn an agent on another account".
+description: Use when a subagent should run on whichever of the user's Claude accounts has the most quota to spare, when work should be spread across several Claude accounts (separate CLAUDE_CONFIG_DIRs) to avoid extra usage, when a session has to find or message a Claude session running under another account (ListAgents only shows its own account), or when asked about "ccherd" (including installing or setting it up), quota per account, "which account has headroom", or "spawn an agent on another account".
 ---
 
 # Agents across Claude accounts (`ccherd`)
@@ -14,10 +14,11 @@ unused.
 
 Run `ccherd doctor` once before anything else in this session.
 
-- **`command not found`**: ccherd is not installed. Tell the user, point them to
-  https://github.com/bocode-labs/ccherd#install, and stop.
-- **Exit code 3 / `not set up`**: tell the user to run `ccherd setup` in this
-  repo, and stop.
+- **`command not found`**: ccherd is not installed. Tell the user. If they want
+  you to install and set it up, follow the setup guide (fetch this raw URL, not
+  the github.com page): https://raw.githubusercontent.com/bocode-labs/ccherd/main/docs/agent-setup.md
+- **Exit code 3 / `not set up`**: ccherd is installed but not set up. The user
+  can run `ccherd setup` in this repo, or ask you to - then follow the same guide.
 - **Exit code 1**: some lines say `FAIL` (an account not logged in, `claude`
   missing). Tell the user what those lines say. Accounts marked `ok` still work.
 - **Exit code 0**: ready.
