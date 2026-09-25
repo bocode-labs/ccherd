@@ -18,6 +18,7 @@ import fcntl
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -129,6 +130,33 @@ def _take_inbox(d: Path) -> list[str]:
     msgs = [json.loads(line)["text"] for line in inbox.read_text().splitlines() if line.strip()]
     inbox.unlink()
     return msgs
+
+
+def prunable(keep_days: int, live_session_ids: set[str], now: float | None = None) -> list[tuple[Path, dict]]:
+    """Finished agents whose owner session has ended and that have been quiet for keep_days.
+
+    Agents of a session that still runs stay: it may resume them. So do running ones.
+    """
+    now = now or time.time()
+    root = config.STATE_DIR
+    out = []
+    for meta_file in sorted(root.glob("*/*/meta.json")) if root.is_dir() else []:
+        d = meta_file.parent
+        try:
+            meta = refreshed(d)
+        except (OSError, ValueError, KeyError):
+            continue
+        quiet_since = meta.get("ended_at") or meta.get("created_at") or 0
+        if (meta.get("status") in TERMINAL and meta.get("owner") not in live_session_ids
+                and now - quiet_since > keep_days * 86400):
+            out.append((d, meta))
+    return out
+
+
+def remove(d: Path) -> None:
+    shutil.rmtree(d, ignore_errors=True)
+    with contextlib.suppress(OSError):
+        d.parent.rmdir()  # the owner's dir, once its last agent is gone
 
 
 # --- running turns ------------------------------------------------------------

@@ -121,13 +121,17 @@ POLICY_DEFAULTS = {
     "when-saturated": "refuse",
     "five-hour-limit": 90,
     "weekly-limit": 98,
+    "keep-agents-days": 7,
 }
 POLICY_HELP = {
     "when-saturated": "refuse | use - when every account is past its limits: refuse to spawn, or use the "
                       "account that can still run (extra usage enabled) anyway",
     "five-hour-limit": "percent of the 5-hour window at which an account is no longer picked (1-100)",
     "weekly-limit": "percent of the week at which an account is no longer picked (1-100)",
+    "keep-agents-days": "days a finished subagent's state is kept after its session ended (1-365); "
+                        "`ccherd clean` and every spawn remove older ones",
 }
+POLICY_RANGES = {"five-hour-limit": (1, 100), "weekly-limit": (1, 100), "keep-agents-days": (1, 365)}
 
 
 def policy() -> dict:
@@ -142,8 +146,9 @@ def set_policy(key: str, value: str) -> object:
             raise SystemExit("ccherd: when-saturated is refuse or use")
         parsed: object = value
     else:
-        if not value.isdigit() or not 1 <= int(value) <= 100:
-            raise SystemExit(f"ccherd: {key} is a whole number from 1 to 100")
+        low, high = POLICY_RANGES[key]
+        if not value.isdigit() or not low <= int(value) <= high:
+            raise SystemExit(f"ccherd: {key} is a whole number from {low} to {high}")
         parsed = int(value)
     data = _read_raw()
     data.setdefault("policy", {})[key] = parsed

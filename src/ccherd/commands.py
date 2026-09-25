@@ -164,6 +164,7 @@ def spawn(a: Namespace) -> int:
     })
     with locked(d):
         agents._start_turn(d, a.task)
+    _clean_quietly()
     print(f"ccherd: started `{a.name}` on account {account.label} ({a.model}, effort {a.effort or 'default'}, "
           f"{mode}) in {cwd}.\n     A notice arrives in this session when it finishes; `ccherd agents` shows its state.")
     return 0
@@ -243,6 +244,30 @@ def _send_to_agent(d, name: str, text: str) -> int:
     deliver(child, text, mode=mode_class(meta["permission_mode"]))
     print(f"sent into running `{name}` (it reads it at its next tool round)")
     return 0
+
+
+def clean(a: Namespace) -> int:
+    """Remove the state of finished subagents whose session is gone (see agents.prunable)."""
+    days = a.older_than if a.older_than is not None else config.policy()["keep-agents-days"]
+    old = agents.prunable(days, {s.get("sessionId") for s in live_sessions()})
+    for d, meta in old:
+        print(f"{'would remove' if a.dry_run else 'removed'} {meta.get('name')} ({meta.get('status')}, "
+              f"quiet since {fmt_ts(meta.get('ended_at') or meta.get('created_at'))})")
+        if not a.dry_run:
+            agents.remove(d)
+    if not old:
+        print(f"nothing to clean (keeps finished agents of ended sessions for {days} days)")
+    return 0
+
+
+def _clean_quietly() -> None:
+    """Run on every spawn so state does not pile up. Never lets a spawn fail."""
+    try:
+        live = {s.get("sessionId") for s in live_sessions()}
+        for d, _ in agents.prunable(config.policy()["keep-agents-days"], live):
+            agents.remove(d)
+    except Exception as e:  # noqa: BLE001 - cleaning up must not break spawning
+        print(f"ccherd: cleaning up old agents failed ({e}); `ccherd clean` retries", file=sys.stderr)
 
 
 def result(a: Namespace) -> int:

@@ -130,6 +130,12 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("name", help="the agent's name")
     s.set_defaults(fn=commands.kill)
 
+    s = sub.add_parser("clean", help="remove the state of finished subagents whose session has ended")
+    s.add_argument("--older-than", type=int, metavar="DAYS",
+                   help="quiet for more than DAYS (default: the keep-agents-days setting)")
+    s.add_argument("--dry-run", action="store_true", help="only show what would be removed")
+    s.set_defaults(fn=commands.clean)
+
     s = sub.add_parser("_supervise")  # internal: the detached process that runs one agent's turns
     s.add_argument("dir")
     s.set_defaults(fn=lambda a: agents.supervise(Path(a.dir)))

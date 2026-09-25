@@ -50,3 +50,37 @@ class Registry(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Prune(unittest.TestCase):
+    DAY = 86400.0
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        patcher = mock.patch.object(config, "STATE_DIR", Path(tmp.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.now = 2_000_000_000.0
+
+    def agent(self, owner: str, name: str, status: str, days_ago: float) -> Path:
+        d = config.STATE_DIR / owner / name
+        d.mkdir(parents=True)
+        agents.save_meta(d, {"name": name, "owner": owner, "status": status, "turns": 1,
+                             "ended_at": self.now - days_ago * self.DAY, "created_at": self.now - 30 * self.DAY})
+        return d
+
+    def test_only_old_finished_agents_of_ended_sessions_go(self):
+        self.agent("gone", "old", "idle", 10)
+        self.agent("gone", "recent", "idle", 2)
+        self.agent("live", "old-but-live-owner", "idle", 10)
+        self.agent("gone", "failed-old", "failed", 10)
+        with mock.patch.object(agents, "pid_alive", return_value=True):
+            self.agent("gone", "running-old", "running", 10)
+            got = {m["name"] for _, m in agents.prunable(7, {"live"}, now=self.now)}
+        self.assertEqual(got, {"old", "failed-old"})
+
+    def test_removing_the_last_agent_removes_the_owner_dir(self):
+        d = self.agent("gone", "old", "idle", 10)
+        agents.remove(d)
+        self.assertFalse((config.STATE_DIR / "gone").exists())

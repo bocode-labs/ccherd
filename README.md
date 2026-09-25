@@ -103,6 +103,7 @@ Config is stored in `~/.config/ccherd/config.json`.
 | `ccherd result NAME` | A subagent's last answer |
 | `ccherd log NAME` | A subagent's transcript |
 | `ccherd kill NAME` | Stop a subagent |
+| `ccherd clean` | Remove what finished subagents left behind (also done on every spawn) |
 
 `spawn`, `agents`, `send`, `result`, `log` and `kill` are meant to be run by
 Claude from inside a session; the skill tells it how. A finished subagent
